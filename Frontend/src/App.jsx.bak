@@ -1,0 +1,72 @@
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
+
+// ── Session helpers ───────────────────────────────────────────────────────────
+// Auth is stored in sessionStorage (tab-bound).
+// On first load, migrate any legacy localStorage session and clear it.
+function getSessionUser() {
+  try {
+    const ss = sessionStorage.getItem('user');
+    if (ss) return JSON.parse(ss);
+    const ls = localStorage.getItem('user');
+    if (ls) {
+      sessionStorage.setItem('user', ls);
+      localStorage.removeItem('user');
+      return JSON.parse(ls);
+    }
+  } catch { /* corrupted data — treat as logged out */ }
+  return null;
+}
+
+// ── ProtectedRoute ─────────────────────────────────────────────────────────
+function ProtectedRoute({ children }) {
+  const location = useLocation();
+  const user = getSessionUser();
+  if (!user) {
+    // Save intended destination so Login can redirect back after auth
+    return <Navigate to="/" replace state={{ from: location }} />;
+  }
+  return children;
+}
+
+// ── PublicRoute ────────────────────────────────────────────────────────────
+// Prevents a logged-in user from navigating back to the Login page.
+function PublicRoute({ children }) {
+  const user = getSessionUser();
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Login — blocked if already authenticated */}
+        <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <Login />
+            </PublicRoute>
+          }
+        />
+
+        {/* Dashboard — requires valid session */}
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Catch-all — send unknown URLs back to root */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
